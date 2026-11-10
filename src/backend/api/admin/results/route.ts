@@ -49,7 +49,14 @@ function resultData(body: Record<string, unknown>, partial = false) {
     data.badge = badge;
   }
   if (body.subtext !== undefined || !partial) data.subtext = optionalText(body.subtext, "Subtext", 500) ?? "";
+  if (body.eventId !== undefined) data.eventId = optionalText(body.eventId, "Event", 100);
   return data;
+}
+
+async function ensureLinkedEventExists(eventId: unknown) {
+  if (typeof eventId !== "string" || !eventId) return;
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true } });
+  if (!event) throw new ApiInputError("The linked event was not found.", 404);
 }
 
 export async function POST(request: Request) {
@@ -57,6 +64,7 @@ export async function POST(request: Request) {
   if (authorization) return authorization;
   try {
     const data = resultData(await readJsonObject(request));
+    await ensureLinkedEventExists(data.eventId);
     const result = await prisma.result.create({ data: data as Parameters<typeof prisma.result.create>[0]["data"] });
     await recordAdminActivity({ action: "CREATE", entity: "Result", entityId: result.id, itemLabel: `${result.team1} vs ${result.team2}` });
     return NextResponse.json({ success: true, result }, { status: 201 });
@@ -73,9 +81,11 @@ export async function PUT(request: Request) {
   try {
     const body = await readJsonObject(request);
     const id = requiredText(body.id, "Result ID", 100);
+    const data = resultData(body, true);
+    await ensureLinkedEventExists(data.eventId);
     const result = await prisma.result.update({
       where: { id },
-      data: resultData(body, true),
+      data,
     });
     await recordAdminActivity({ action: "UPDATE", entity: "Result", entityId: result.id, itemLabel: `${result.team1} vs ${result.team2}` });
     return NextResponse.json({ success: true, result });

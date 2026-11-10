@@ -46,6 +46,7 @@ export interface RecentResult {
   team2: string;
   score2: number | string;
   subtext: string;
+  eventId?: string | null;
 }
 
 export interface TournamentEvent {
@@ -62,6 +63,9 @@ export interface TournamentEvent {
   formatSub: string;
   statusBadge: string;
   description?: string;
+  report?: string | null;
+  results?: RecentResult[];
+  reportImages?: { id: string; url: string }[];
   posterUrl?: string | null;
   slotsFilled?: number;
   slotsTotal?: number;

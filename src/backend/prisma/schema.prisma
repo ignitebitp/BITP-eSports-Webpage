@@ -74,10 +74,13 @@ model Event {
   formatSub   String
   statusBadge String
   description String?
+  report      String?
   slotsFilled Int?     @default(0)
   slotsTotal  Int?     @default(64)
   isSpotlight Boolean  @default(false)
   poster      EventPoster?
+  results     Result[]
+  reportImages EventReportImage[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -131,10 +134,13 @@ model Result {
   team2      String
   score2     String
   subtext    String
+  eventId    String?
+  event      Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   @@index([createdAt])
+  @@index([eventId])
 }
 
 model GameTitle {
@@ -215,6 +221,17 @@ model Achievement {
   updatedAt   DateTime @updatedAt
 
   @@index([date])
+}
+
+model EventReportImage {
+  id        String   @id @default(uuid())
+  eventId   String
+  data      Bytes
+  mimeType  String   @default("image/webp")
+  createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt])
 }
 
 model ContactSubmission {

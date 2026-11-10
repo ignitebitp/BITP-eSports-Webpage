@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  distDir: "../../.next",
   async headers() {
     const headers = [
       { key: 'X-Content-Type-Options', value: 'nosniff' },

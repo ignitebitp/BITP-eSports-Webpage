@@ -13,6 +13,7 @@ import {
   requireAdmin,
   safeServerError,
 } from "@/lib/api";
+import { reportImageUrl } from "@/lib/report-image";
 
 export async function GET(request: Request) {
   const authorization = await requireAdmin(request);
@@ -21,6 +22,10 @@ export async function GET(request: Request) {
   try {
     const events = await prisma.event.findMany({
       orderBy: { isoDate: "asc" },
+      include: {
+        results: { orderBy: { createdAt: "asc" } },
+        reportImages: { select: { id: true }, orderBy: { createdAt: "asc" } },
+      },
       take: 200,
     });
     const posters = await prisma.eventPoster.findMany({
@@ -33,6 +38,7 @@ export async function GET(request: Request) {
       events: events.map((event) => ({
         ...event,
         posterUrl: posterIds.has(event.id) ? `/api/events/${event.id}/poster` : null,
+        reportImages: event.reportImages.map((image) => ({ id: image.id, url: reportImageUrl(event.id, image.id) })),
       })),
     });
   } catch (error) {
@@ -54,6 +60,7 @@ function eventData(body: Record<string, unknown>, partial = false) {
     formatSub?: string;
     statusBadge?: string;
     description?: string | null;
+    report?: string | null;
     slotsFilled?: number;
     slotsTotal?: number;
     isSpotlight?: boolean;
@@ -94,6 +101,9 @@ function eventData(body: Record<string, unknown>, partial = false) {
   }
   if (body.description !== undefined || !partial) {
     data.description = optionalText(body.description, "Description", 4_000)?.replace(/\r\n?/g, "\n") ?? null;
+  }
+  if (body.report !== undefined || !partial) {
+    data.report = optionalText(body.report, "Report", 8_000)?.replace(/\r\n?/g, "\n") ?? null;
   }
   if (body.slotsFilled !== undefined || !partial) {
     data.slotsFilled = optionalInteger(body.slotsFilled, "Filled slots", 0, 0, 100_000);

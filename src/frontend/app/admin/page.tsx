@@ -53,6 +53,7 @@ const resources: Record<ResourceKey, Resource> = {
       { name: 'formatSub', label: 'Format details' },
       { name: 'statusBadge', label: 'Status badge' },
       { name: 'description', label: 'Description', type: 'textarea' },
+      { name: 'report', label: 'Event report (shown in archive only)', type: 'textarea' },
       { name: 'slotsFilled', label: 'Slots filled', type: 'number' },
       { name: 'slotsTotal', label: 'Total slots', type: 'number' },
       { name: 'isSpotlight', label: 'Feature this event', type: 'checkbox' },
@@ -193,6 +194,283 @@ function displayDate(value: unknown) {
   if (typeof value !== 'string') return '';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toISOString().slice(0, 10);
+}
+
+function EventReportPanel({ eventId, eventDiscipline, images, onChanged }: {
+  eventId: string;
+  eventDiscipline: string;
+  images: { id: string; url: string }[];
+  onChanged: () => Promise<void>;
+}) {
+  const [boxes, setBoxes] = useState<Entry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [panelError, setPanelError] = useState('');
+  const [panelNotice, setPanelNotice] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [editingBoxId, setEditingBoxId] = useState<string | null>(null);
+  const [form, setForm] = useState({ discipline: '', league: '', badge: 'WIN', team1: '', score1: '', team2: '', score2: '', subtext: '' });
+  const [boxBusy, setBoxBusy] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [fileKey, setFileKey] = useState(0);
+
+  const loadBoxes = useCallback(async () => {
+    const response = await fetch('/api/admin/results', { cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not load result boxes.');
+    return (Array.isArray(data.results) ? data.results : []).filter((box: Entry) => box.eventId === eventId);
+  }, [eventId]);
+
+  useEffect(() => {
+    let activeRequest = true;
+    void loadBoxes()
+      .then((filtered) => {
+        if (activeRequest) {
+          setBoxes(filtered);
+          setLoading(false);
+        }
+      })
+      .catch((boxesError: unknown) => {
+        if (activeRequest) {
+          setPanelError(boxesError instanceof Error ? boxesError.message : 'Could not load result boxes.');
+          setLoading(false);
+        }
+      });
+    return () => {
+      activeRequest = false;
+    };
+  }, [loadBoxes]);
+
+  function startForm(box?: Entry) {
+    setEditingBoxId(typeof box?.id === 'string' ? box.id : null);
+    setForm({
+      discipline: String(box?.discipline ?? eventDiscipline),
+      league: String(box?.league ?? ''),
+      badge: String(box?.badge ?? 'WIN'),
+      team1: String(box?.team1 ?? ''),
+      score1: String(box?.score1 ?? ''),
+      team2: String(box?.team2 ?? ''),
+      score2: String(box?.score2 ?? ''),
+      subtext: String(box?.subtext ?? ''),
+    });
+    setShowForm(true);
+    setPanelNotice('');
+    setPanelError('');
+  }
+
+  async function saveForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBoxBusy(true);
+    setPanelError('');
+    setPanelNotice('');
+    try {
+      const response = await fetch('/api/admin/results', {
+        method: editingBoxId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, ...(editingBoxId ? { id: editingBoxId } : {}), eventId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not save this result box.');
+      setShowForm(false);
+      setEditingBoxId(null);
+      setPanelNotice(editingBoxId ? 'Result box updated.' : 'Result box added to the event report.');
+      setBoxes(await loadBoxes());
+      await onChanged();
+    } catch (saveError) {
+      setPanelError(saveError instanceof Error ? saveError.message : 'Could not save this result box.');
+    } finally {
+      setBoxBusy(false);
+    }
+  }
+
+  async function uploadImage() {
+    if (!imageFile) return;
+    setBoxBusy(true);
+    setPanelError('');
+    setPanelNotice('');
+    try {
+      const imageForm = new FormData();
+      imageForm.set('eventId', eventId);
+      imageForm.set('image', imageFile);
+      const response = await fetch('/api/admin/events/report-image', { method: 'POST', body: imageForm });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not upload this image.');
+      setImageFile(null);
+      setFileKey((key) => key + 1);
+      setPanelNotice('Image uploaded and stored as WebP.');
+      await onChanged();
+    } catch (uploadError) {
+      setPanelError(uploadError instanceof Error ? uploadError.message : 'Could not upload this image.');
+    } finally {
+      setBoxBusy(false);
+    }
+  }
+
+  async function removeImage(id: string) {
+    if (!window.confirm('Delete this report image? This cannot be undone.')) return;
+    setBoxBusy(true);
+    setPanelError('');
+    setPanelNotice('');
+    try {
+      const response = await fetch(`/api/admin/events/report-image?imageId=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not delete this image.');
+      setPanelNotice('Report image deleted.');
+      await onChanged();
+    } catch (deleteError) {
+      setPanelError(deleteError instanceof Error ? deleteError.message : 'Could not delete this image.');
+    } finally {
+      setBoxBusy(false);
+    }
+  }
+
+  async function removeBox(id: string) {    if (!window.confirm('Delete this result box? This cannot be undone.')) return;
+    setBoxBusy(true);
+    setPanelError('');
+    setPanelNotice('');
+    try {
+      const response = await fetch(`/api/admin/results?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not delete this result box.');
+      if (editingBoxId === id) {
+        setEditingBoxId(null);
+        setShowForm(false);
+      }
+      setPanelNotice('Result box deleted.');
+      setBoxes(await loadBoxes());
+      await onChanged();
+    } catch (deleteError) {
+      setPanelError(deleteError instanceof Error ? deleteError.message : 'Could not delete this result box.');
+    } finally {
+      setBoxBusy(false);
+    }
+  }
+
+  return (
+    <section className="mt-6 border border-[#33343b] bg-[#0c0e14] p-5">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-headline-md uppercase text-white">Event report — result boxes ({loading ? '…' : boxes.length})</h2>
+        {!showForm && (
+          <button onClick={() => startForm()} disabled={boxBusy} className="bg-[#cdf200] px-4 py-2 font-label-caps text-xs font-bold uppercase text-[#0a0b0e] disabled:opacity-50">
+            Add result box
+          </button>
+        )}
+      </div>
+      <p className="mb-4 text-sm text-[#8f96a3]">Write the report in the event form above. Manage each outcome below — boxes appear on the archived event card and in the recent results feed.</p>
+      {panelError && <p role="alert" className="mb-4 border border-red-800 bg-red-950/40 p-3 text-sm text-red-200">{panelError}</p>}
+      {panelNotice && <p role="status" className="mb-4 border border-[#637500] bg-[#1d1f26] p-3 text-sm text-[#cdf200]">{panelNotice}</p>}
+      <div className="mb-6 border border-[#33343b] bg-[#191b22] p-4">
+        <h3 className="mb-1 font-headline-sm uppercase text-white">Report images ({images.length})</h3>
+        <p className="mb-3 text-sm text-[#8f96a3]">JPEG, PNG, or WebP up to 4 MB. Stored and served as WebP. Shown in the archived event report.</p>
+        <div className="flex flex-col gap-3">
+          <label className="block space-y-1 text-xs uppercase tracking-wide text-[#8f96a3]">
+            Choose image
+            <input
+              key={fileKey}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                if (file && file.size > 4 * 1024 * 1024) {
+                  setPanelError('Report images must be no larger than 4 MB.');
+                  event.target.value = '';
+                  setImageFile(null);
+                  return;
+                }
+                setPanelError('');
+                setImageFile(file);
+              }}
+              className="block w-full border border-[#33343b] bg-[#0c0e14] px-3 py-2 normal-case text-white file:mr-3 file:border-0 file:bg-[#cdf200] file:px-3 file:py-1 file:font-bold file:text-[#0a0b0e]"
+            />
+          </label>
+          <div>
+            <button onClick={() => void uploadImage()} disabled={boxBusy || !imageFile} className="bg-[#cdf200] px-4 py-2 font-label-caps text-xs font-bold uppercase text-[#0a0b0e] disabled:opacity-50">
+              {boxBusy ? 'Uploading…' : 'Upload image'}
+            </button>
+          </div>
+        </div>
+        {images.length > 0 && (
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {images.map((image) => (
+              <div key={image.id} className="border border-[#33343b] bg-[#0c0e14] p-2">
+                <Image src={image.url} alt="Event report image" width={320} height={240} unoptimized className="h-32 w-full border border-[#33343b] object-cover" />
+                <button onClick={() => void removeImage(image.id)} disabled={boxBusy} className="mt-2 w-full border border-red-900 px-3 py-1 text-xs uppercase text-red-200 hover:bg-red-950/40 disabled:opacity-50">
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {showForm && (
+        <form onSubmit={saveForm} className="mb-4 grid grid-cols-1 gap-4 border border-[#cdf200] bg-[#191b22] p-4 sm:grid-cols-2">
+          <label className="space-y-1 text-xs uppercase tracking-wide text-[#8f96a3]">
+            Game / discipline
+            <input required value={form.discipline} onChange={(event) => setForm({ ...form, discipline: event.target.value })} maxLength={100} className="w-full border border-[#33343b] bg-[#0c0e14] px-3 py-2 normal-case text-white" />
+          </label>
+          <label className="space-y-1 text-xs uppercase tracking-wide text-[#8f96a3]">
+            League
+            <input value={form.league} onChange={(event) => setForm({ ...form, league: event.target.value })} maxLength={160} placeholder="Collegiate League" className="w-full border border-[#33343b] bg-[#0c0e14] px-3 py-2 normal-case text-white" />
+          </label>
+          <label className="space-y-1 text-xs uppercase tracking-wide text-[#8f96a3]">
+            Outcome
+            <select value={form.badge} onChange={(event) => setForm({ ...form, badge: event.target.value })} className="w-full border border-[#33343b] bg-[#0c0e14] px-3 py-2 text-white">
+              <option value="WIN">WIN</option>
+              <option value="SWEEP">SWEEP</option>
+              <option value="COMPLETED">COMPLETED</option>
+              <option value="LOSS">LOSS</option>
+            </select>
+          </label>
+          <label className="space-y-1 text-xs uppercase tracking-wide text-[#8f96a3]">
+            Notes
+            <input value={form.subtext} onChange={(event) => setForm({ ...form, subtext: event.target.value })} maxLength={500} className="w-full border border-[#33343b] bg-[#0c0e14] px-3 py-2 normal-case text-white" />
+          </label>
+          <label className="space-y-1 text-xs uppercase tracking-wide text-[#8f96a3]">
+            Team one
+            <input required value={form.team1} onChange={(event) => setForm({ ...form, team1: event.target.value })} maxLength={160} className="w-full border border-[#33343b] bg-[#0c0e14] px-3 py-2 normal-case text-white" />
+          </label>
+          <label className="space-y-1 text-xs uppercase tracking-wide text-[#8f96a3]">
+            Score one
+            <input required value={form.score1} onChange={(event) => setForm({ ...form, score1: event.target.value })} maxLength={40} className="w-full border border-[#33343b] bg-[#0c0e14] px-3 py-2 normal-case text-white" />
+          </label>
+          <label className="space-y-1 text-xs uppercase tracking-wide text-[#8f96a3]">
+            Team two
+            <input required value={form.team2} onChange={(event) => setForm({ ...form, team2: event.target.value })} maxLength={160} className="w-full border border-[#33343b] bg-[#0c0e14] px-3 py-2 normal-case text-white" />
+          </label>
+          <label className="space-y-1 text-xs uppercase tracking-wide text-[#8f96a3]">
+            Score two
+            <input required value={form.score2} onChange={(event) => setForm({ ...form, score2: event.target.value })} maxLength={40} className="w-full border border-[#33343b] bg-[#0c0e14] px-3 py-2 normal-case text-white" />
+          </label>
+          <div className="flex gap-2 sm:col-span-2">
+            <button disabled={boxBusy} className="bg-[#cdf200] px-4 py-2 font-label-caps text-xs font-bold uppercase text-[#0a0b0e] disabled:opacity-50">
+              {boxBusy ? 'Saving…' : editingBoxId ? 'Save changes' : 'Add box'}
+            </button>
+            <button type="button" onClick={() => { setShowForm(false); setEditingBoxId(null); }} className="border border-[#33343b] px-4 py-2 text-xs uppercase text-white">Cancel</button>
+          </div>
+        </form>
+      )}
+      {boxes.length === 0 && !showForm && !loading && (
+        <p className="border border-[#33343b] bg-[#191b22] p-5 text-sm text-[#8f96a3]">No result boxes yet. Add the first outcome using the button above.</p>
+      )}
+      <div className="space-y-3">
+        {boxes.map((box) => {
+          const boxId = typeof box.id === 'string' ? box.id : '';
+          return (
+            <article key={boxId || String(box.createdAt)} className="flex flex-wrap items-start justify-between gap-3 border border-[#33343b] bg-[#191b22] p-4">
+              <div className="min-w-0">
+                <h3 className="break-words font-semibold text-white">{String(box.team1 ?? '')} {String(box.score1 ?? '')} — {String(box.score2 ?? '')} {String(box.team2 ?? '')}</h3>
+                <p className="mt-1 break-words text-sm text-[#8f96a3]">{String(box.discipline ?? '')} • {String(box.league ?? '')} • {String(box.badge ?? '')}</p>
+                {box.subtext ? <p className="mt-1 break-words text-sm text-[#8f96a3]">{String(box.subtext)}</p> : null}
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button onClick={() => startForm(box)} className="border border-[#33343b] px-3 py-1 text-xs uppercase text-white hover:border-[#cdf200]">Edit</button>
+                <button onClick={() => void removeBox(boxId)} disabled={!boxId || boxBusy} className="border border-red-900 px-3 py-1 text-xs uppercase text-red-200 hover:bg-red-950/40 disabled:opacity-50">Delete</button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 export default function AdminPage() {
@@ -820,6 +1098,7 @@ export default function AdminPage() {
           ))}
         </section>
       ) : active !== 'contact' ? (
+        <>
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
           <section className="border border-[#33343b] bg-[#0c0e14] p-5">
             <h2 className="mb-4 font-headline-md uppercase text-white">{editingId ? `Edit ${resource.label}` : `Add ${resource.label}`}</h2>
@@ -959,6 +1238,9 @@ export default function AdminPage() {
                     <div className="min-w-0">
                       <h3 className="break-words font-semibold text-white">{title}</h3>
                       {summary && <p className="mt-1 break-words text-sm text-[#8f96a3]">{summary}</p>}
+                      {active === 'results' && typeof entry.eventId === 'string' && entry.eventId && (
+                        <p className="mt-1 text-xs font-bold uppercase text-[#cdf200]">Linked to event report</p>
+                      )}
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <button onClick={() => startEditing(entry)} className="border border-[#33343b] px-3 py-1 text-xs uppercase text-white hover:border-[#cdf200]">Edit</button>
@@ -970,6 +1252,22 @@ export default function AdminPage() {
             })}
           </section>
         </div>
+        {active === 'events' && editingId && (
+          <EventReportPanel
+            key={editingId}
+            eventId={editingId}
+            eventDiscipline={String(entries.find((entry) => entry.id === editingId)?.discipline ?? '')}
+            images={(() => {
+              const found = entries.find((entry) => entry.id === editingId)?.reportImages;
+              return Array.isArray(found) ? found.filter((image): image is { id: string; url: string } =>
+                typeof image === 'object' && image !== null &&
+                typeof (image as { id?: unknown }).id === 'string' &&
+                typeof (image as { url?: unknown }).url === 'string') : [];
+            })()}
+            onChanged={loadEntries}
+          />
+        )}
+        </>
       ) : (
         <section className="space-y-3">
           <h2 className="font-headline-md uppercase text-white">Recent contact submissions ({entries.length})</h2>

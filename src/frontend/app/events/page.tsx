@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEsportsModal } from '@/context/ModalContext';
-import { type TournamentEvent, formatEventTime, isEventEndedIST } from '@/data/esportsData';
+import { type TournamentEvent, type RecentResult, formatEventTime, isEventEndedIST } from '@/data/esportsData';
 import {
   Calendar, Trophy, Video, Users, ArrowRight, Lightbulb,
   Search, CheckCircle2, Radio, Filter, MapPin, Clock, Archive
@@ -15,6 +15,7 @@ export default function EventsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewTab, setViewTab] = useState<'upcoming' | 'archive'>('upcoming');
   const [events, setEvents] = useState<TournamentEvent[]>([]);
+  const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -62,6 +63,11 @@ export default function EventsPage() {
       item.location.toLowerCase().includes(searchQuery.toLowerCase())
     );
   });
+
+  const toggleReport = (id: string) => {
+    playTacticalSound('click');
+    setExpandedReportId(expandedReportId === id ? null : id);
+  };
 
   return (
     <main className="flex-grow w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-12 py-8 space-y-16">
@@ -196,18 +202,81 @@ export default function EventsPage() {
                     <p className="font-body-sm whitespace-pre-wrap text-[#8f96a3] line-clamp-3">
                       {item.description || item.format}
                     </p>
+
+                    {Array.isArray(item.results) && item.results.length > 0 && (
+                      <div className="space-y-2 border-t border-[#262a36] pt-3">
+                        <span className="font-label-mono-sm text-[#cdf200] uppercase text-[10px] font-bold">
+                          EVENT RESULTS ({item.results.length})
+                        </span>
+                        {item.results.map((res: RecentResult) => (
+                          <div key={res.id} className="border border-[#262a36] bg-[#191b22] p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-headline-sm uppercase text-white text-sm">
+                                {res.team1} <span className="text-[#cdf200]">{res.score1}</span>
+                              </span>
+                              <span className="font-label-mono-sm px-1.5 py-0.5 font-bold uppercase text-[10px] bg-[#cdf200] text-[#0a0b0e]">
+                                {res.badge}
+                              </span>
+                            </div>
+                            <div className="font-headline-sm uppercase text-[#8f96a3] text-sm">
+                              {res.team2} <span>{res.score2}</span>
+                            </div>
+                            {res.subtext ? <p className="mt-1 text-xs text-[#8f96a3]">{res.subtext}</p> : null}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="pt-4 border-t border-[#262a36] flex items-center justify-between">
+                  {expandedReportId === item.id && (item.report || (Array.isArray(item.reportImages) && item.reportImages.length > 0)) ? (
+                    <div className="space-y-3 border border-[#cdf200]/40 bg-[#191b22] p-4">
+                      <span className="font-label-mono-sm text-[#cdf200] uppercase text-[10px] font-bold">
+                        EVENT REPORT
+                      </span>
+                      {item.report ? (
+                        <p className="font-body-sm whitespace-pre-wrap text-[#d1d5db] mt-1">
+                          {item.report}
+                        </p>
+                      ) : null}
+                      {Array.isArray(item.reportImages) && item.reportImages.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          {item.reportImages.map((image) => (
+                            <div key={image.id} className="relative aspect-[4/3] w-full overflow-hidden border border-[#262a36]">
+                              <Image
+                                src={image.url}
+                                alt={`${item.title} report photo`}
+                                fill
+                                sizes="(max-width: 768px) 50vw, 20vw"
+                                unoptimized
+                                className="object-cover"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className="pt-4 border-t border-[#262a36] flex items-center justify-between gap-2">
                     <span className="font-label-mono-sm text-xs text-[#8f96a3] border border-[#262a36] px-2 py-0.5 uppercase">
                       {item.statusBadge === 'UPCOMING' ? 'CONCLUDED' : item.statusBadge}
                     </span>
-                    <button
-                      onClick={() => openModal('register', item)}
-                      className="bg-[#191b22] border border-[#33343b] hover:border-[#cdf200] text-[#8f96a3] hover:text-white px-3 py-1 font-label-caps uppercase text-xs transition-colors"
-                    >
-                      Archive Log
-                    </button>
+                    <div className="flex gap-2">
+                      {item.report || (Array.isArray(item.reportImages) && item.reportImages.length > 0) ? (
+                        <button
+                          onClick={() => item.id && toggleReport(item.id)}
+                          className="bg-[#cdf200] text-[#0a0b0e] hover:bg-white px-3 py-1 font-label-caps uppercase text-xs font-bold transition-colors"
+                        >
+                          {expandedReportId === item.id ? 'Hide report' : 'Read report'}
+                        </button>
+                      ) : null}
+                      <button
+                        onClick={() => openModal('register', item)}
+                        className="bg-[#191b22] border border-[#33343b] hover:border-[#cdf200] text-[#8f96a3] hover:text-white px-3 py-1 font-label-caps uppercase text-xs transition-colors"
+                      >
+                        Archive Log
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

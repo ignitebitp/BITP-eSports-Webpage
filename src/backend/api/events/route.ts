@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { reportImageUrl } from "@/lib/report-image";
 
 export async function GET() {
   try {
     const events = await prisma.event.findMany({
       orderBy: { isoDate: "asc" },
+      include: {
+        results: { orderBy: { createdAt: "asc" } },
+        reportImages: { select: { id: true }, orderBy: { createdAt: "asc" } },
+      },
       take: 200,
     });
     const posters = await prisma.eventPoster.findMany({
@@ -17,6 +22,7 @@ export async function GET() {
       events: events.map((event) => ({
         ...event,
         posterUrl: posterIds.has(event.id) ? `/api/events/${event.id}/poster` : null,
+        reportImages: event.reportImages.map((image) => ({ id: image.id, url: reportImageUrl(event.id, image.id) })),
       })),
     });
   } catch (error) {
