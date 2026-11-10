@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { usernameFromEmail } from "../src/lib/username";
+import { usernameFromEmail } from "../lib/username";
 
 const prisma = new PrismaClient();
 

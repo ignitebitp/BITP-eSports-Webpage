@@ -20,7 +20,9 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/backend/*": ["./backend/*"],
+      "@/lib/*": ["./backend/lib/*"],
+      "@/*": ["./frontend/*"]
     }
   },
   "include": [
@@ -31,5 +33,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", ".next"]
+  "exclude": ["node_modules", ".next", "frontend/.next"]
 }

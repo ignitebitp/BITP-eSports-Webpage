@@ -1,6 +1,6 @@
 # BITPeSports Website
 
-Next.js App Router website with a small Prisma-backed content manager. Frontend pages and components live in `src/app`, `src/components`, `src/context`, and `src/data`; backend library services live in `src/lib`, and the PostgreSQL schema lives in `prisma/schema.prisma`. Public pages read events, teams, rosters, committee members, matches, weekly activities, and results from the database. Club administrators manage content at `/admin`.
+Next.js App Router website with a small Prisma-backed content manager. Frontend code lives in `frontend`, backend services and the PostgreSQL schema live in `backend`. Public pages read events, teams, rosters, committee members, matches, weekly activities, and results from the database. Club administrators manage content at `/admin`.
 
 ## Local setup
 
@@ -135,7 +135,7 @@ If contact-notification settings are absent, contact messages remain stored in t
 
 The application uses Prisma Postgres. Set `DATABASE_URL` in the Vercel project’s production environment and in the ignored local `.env` for local development. Do not commit or paste the connection string into source control.
 
-The Prisma schema is `prisma/schema.prisma`. Run `npm run db:generate`, then review and apply the schema with `npm run db:push`. Run the schema push only after configuring `DATABASE_URL` to the intended database; back up production data before future schema changes. A newly created database starts empty, so provision an Owner account and add public content through the admin panel.
+The Prisma schema is `backend/prisma/schema.prisma`. Run `npm run db:generate`, then review and apply the schema with `npm run db:push`. Run the schema push only after configuring `DATABASE_URL` to the intended database; back up production data before future schema changes. A newly created database starts empty, so provision an Owner account and add public content through the admin panel.
 
 ## Security and deployment
 
