@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate --schema backend/prisma/schema.prisma",
     "db:push": "prisma db push --schema backend/prisma/schema.prisma && npm run admin:backfill-usernames",
+    "db:studio": "prisma studio --schema backend/prisma/schema.prisma",
     "admin:backfill-usernames": "node --env-file=.env --import tsx backend/scripts/backfill-admin-usernames.ts",
     "admin:create": "node --env-file=.env --import tsx backend/scripts/create-admin.ts"
   },
