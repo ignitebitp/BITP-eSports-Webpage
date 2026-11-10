@@ -3,14 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin, requestIdentifier, safeServerError } from "@/lib/api";
 import { recordAdminActivity } from "@/lib/admin-activity";
 import { checkPersistentRateLimit } from "@/lib/rateLimit";
+import { convertPosterToWebp, isSupportedPosterImage, MAX_POSTER_BYTES } from "@/lib/event-poster";
 
-const MAX_POSTER_BYTES = 4 * 1024 * 1024;
 const MAX_REQUEST_BYTES = MAX_POSTER_BYTES + 64 * 1024;
-const IMAGE_TYPES = new Map([
-  ["image/jpeg", { extension: "jpg", matches: (bytes: Uint8Array) => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff }],
-  ["image/png", { extension: "png", matches: (bytes: Uint8Array) => bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a }],
-  ["image/webp", { extension: "webp", matches: (bytes: Uint8Array) => String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP" }],
-]);
 
 export async function POST(request: Request) {
   const authorization = await requireAdmin(request, true, "content:write");
@@ -34,21 +29,19 @@ export async function POST(request: Request) {
     if (!(file instanceof File) || file.size === 0 || file.size > MAX_POSTER_BYTES) {
       return NextResponse.json({ error: "Choose a poster image no larger than 4 MB." }, { status: 400 });
     }
-    const type = IMAGE_TYPES.get(file.type);
-    if (!type) {
-      return NextResponse.json({ error: "Poster must be a JPEG, PNG, or WebP image." }, { status: 415 });
-    }
     const data = Buffer.from(await file.arrayBuffer());
-    if (!type.matches(data)) {
-      return NextResponse.json({ error: "The uploaded file contents do not match a supported image format." }, { status: 415 });
+    if (!isSupportedPosterImage(file.type, data)) {
+      return NextResponse.json({ error: "Poster must be a valid JPEG, PNG, or WebP image." }, { status: 415 });
     }
     const event = await prisma.event.findUnique({ where: { id: eventIdValue }, select: { id: true, title: true } });
     if (!event) return NextResponse.json({ error: "Event not found." }, { status: 404 });
 
+    const compressedPoster = await convertPosterToWebp(data);
+
     await prisma.eventPoster.upsert({
       where: { eventId: event.id },
-      create: { eventId: event.id, data, mimeType: file.type },
-      update: { data, mimeType: file.type },
+      create: { eventId: event.id, data: compressedPoster, mimeType: "image/webp" },
+      update: { data: compressedPoster, mimeType: "image/webp" },
     });
     await recordAdminActivity({
       action: "UPDATE",
