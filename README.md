@@ -1,6 +1,6 @@
 # BITPeSports Website
 
-Next.js App Router website with a small Prisma-backed content manager. Frontend code lives in `src/frontend`, backend services and the PostgreSQL schema live in `src/backend`. Public pages read events, teams, rosters, committee members, matches, weekly activities, and results from the database. Club administrators manage content at `/admin`.
+Next.js App Router website with a small Prisma-backed content manager. Frontend pages and components live in `src/app`, `src/components`, `src/context`, and `src/data`; backend library services live in `src/lib`, and the PostgreSQL schema lives in `prisma/schema.prisma`. Public pages read events, teams, rosters, committee members, matches, weekly activities, and results from the database. Club administrators manage content at `/admin`.
 
 ## Local setup
 
@@ -61,12 +61,10 @@ Then temporarily add `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_PASSWORD`, and `ADMIN_R
 In the new owner’s Vercel account, select **Add New → Project** and import the transferred GitHub repository. Configure the project from the repository root—the directory containing `package.json` and `package-lock.json`:
 
 - **Framework Preset:** Next.js
-- **Root Directory:** repository root (`.` or blank), not `src/frontend`
-- **Install Command:** default, or `npm ci`; do not set a parent-directory command such as `cd ../.. && npm ci`
-- **Build Command:** `npm run build`
+- **Root Directory:** repository root (`.` or blank)
+- **Install Command:** default (`npm ci`)
+- **Build Command:** default (`npm run build`)
 - **Output Directory:** default
-
-The build script already runs Next.js against `src/frontend`.
 
 ### 4. Add server environment variables in Vercel
 
@@ -103,7 +101,7 @@ The authenticated admin panel supports content management for events, game divis
 
 Events support an optional JPEG, PNG, or WebP poster up to 4 MB. The recommended image size is 1440×1350 pixels; other dimensions are accepted and displayed in the poster frame. Posters are stored in PostgreSQL alongside event records, so include the database in backups. Event descriptions preserve entered line breaks on public pages.
 
-The **Committee & members** section manages the About page team sections. Choose a section (President, Core Executive, Senior Coordinator, or Junior Coordinator) separately from the person’s post, so Core Executive members can have different posts. Core Executive profiles are displayed together as static cards, with the Manager first; coordinator sections use manual carousels. Add the person’s photo (JPEG, PNG, or WebP, up to 4 MB), name, and roll number; uploaded photos are stored in PostgreSQL with the committee record. The current About page also includes frontend-local committee portraits in `src/frontend/public/resources/people`.
+The **Committee & members** section manages the About page team sections. Choose a section (President, Core Executive, Senior Coordinator, or Junior Coordinator) separately from the person’s post, so Core Executive members can have different posts. Core Executive profiles are displayed together as static cards, with the Manager first; coordinator sections use manual carousels. Add the person’s photo (JPEG, PNG, or WebP, up to 4 MB), name, and roll number; uploaded photos are stored in PostgreSQL with the committee record. The current About page also includes frontend-local committee portraits in `public/resources/people`.
 
 To add a user, sign in at `/admin` as an `OWNER` or `ADMIN`, open **User accounts**, enter only the person's email address, choose a role if you are an Owner (Admins can only invite Moderators), and select **Send invitation**. Invitation email must be configured with Resend. The person follows the single-use email link to choose their own display name, unique username, and password. They can sign in using either their email or username. Admins can change their display name and username under **My profile**; activity records identify the username.
 
@@ -111,7 +109,7 @@ Roles are enforced by server-side API authorization. `MODERATOR` can create, edi
 
 ## Frontend image assets
 
-Frontend images are stored locally under `src/frontend/public/resources` and served from `/resources/...`; the site does not fetch the displayed photos or game artwork from remote image hosts. Committee portraits used by the About page are under `src/frontend/public/resources/people`. Add future frontend image assets to this folder and reference them with a `/resources/...` path.
+Frontend images are stored locally under `public/resources` and served from `/resources/...`; the site does not fetch the displayed photos or game artwork from remote image hosts. Committee portraits used by the About page are under `public/resources/people`. Add future frontend image assets to this folder and reference them with a `/resources/...` path.
 
 Public content endpoints are read-only. All content mutations use same-origin admin API routes protected by the signed, HTTP-only admin session cookie. Contact submissions are saved in the database and are not publicly readable.
 
@@ -137,7 +135,7 @@ If contact-notification settings are absent, contact messages remain stored in t
 
 The application uses Prisma Postgres. Set `DATABASE_URL` in the Vercel project’s production environment and in the ignored local `.env` for local development. Do not commit or paste the connection string into source control.
 
-The Prisma schema is `src/backend/prisma/schema.prisma`. Run `npm run db:generate`, then review and apply the schema with `npm run db:push`. Run the schema push only after configuring `DATABASE_URL` to the intended database; back up production data before future schema changes. A newly created database starts empty, so provision an Owner account and add public content through the admin panel.
+The Prisma schema is `prisma/schema.prisma`. Run `npm run db:generate`, then review and apply the schema with `npm run db:push`. Run the schema push only after configuring `DATABASE_URL` to the intended database; back up production data before future schema changes. A newly created database starts empty, so provision an Owner account and add public content through the admin panel.
 
 ## Security and deployment
 

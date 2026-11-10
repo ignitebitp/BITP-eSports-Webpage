@@ -20,16 +20,16 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/lib/*": ["./src/backend/lib/*"],
-      "@/backend/*": ["./src/backend/*"],
-      "@/*": ["./src/frontend/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    "**/*.mts"
+    "**/*.mts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", ".next", "src/frontend/.next"]
+  "exclude": ["node_modules", ".next"]
 }

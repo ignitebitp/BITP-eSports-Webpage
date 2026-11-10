@@ -3,15 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev src/frontend",
-    "build": "npm run db:generate && next build src/frontend",
-    "start": "next start src/frontend",
-    "lint": "eslint src/frontend/app src/frontend/components src/frontend/context src/frontend/data src/backend",
+    "dev": "next dev",
+    "build": "npm run db:generate && next build",
+    "start": "next start",
+    "lint": "eslint src scripts",
     "typecheck": "tsc --noEmit",
-    "db:generate": "prisma generate --schema src/backend/prisma/schema.prisma",
-    "db:push": "prisma db push --schema src/backend/prisma/schema.prisma && npm run admin:backfill-usernames",
-    "admin:backfill-usernames": "node --env-file=.env --import tsx src/backend/scripts/backfill-admin-usernames.ts",
-    "admin:create": "node --env-file=.env --import tsx src/backend/scripts/create-admin.ts"
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push && npm run admin:backfill-usernames",
+    "admin:backfill-usernames": "node --env-file=.env --import tsx scripts/backfill-admin-usernames.ts",
+    "admin:create": "node --env-file=.env --import tsx scripts/create-admin.ts"
   },
   "engines": {
     "node": ">=20.9.0"
